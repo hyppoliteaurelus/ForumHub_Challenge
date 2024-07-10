@@ -96,6 +96,10 @@ public class Usuario implements UserDetails {
     public Boolean getEstado() {
         return estado;
     }
+    public void setEstado(Boolean estado) {
+        this.estado = estado;
+
+    }
 
     public void setUsername(String username) {
         this.username = username;
@@ -105,8 +109,5 @@ public class Usuario implements UserDetails {
         this.password = password;
     }
 
-    public void setEstado(Boolean estado) {
-        this.estado = estado;
 
-    }
 }

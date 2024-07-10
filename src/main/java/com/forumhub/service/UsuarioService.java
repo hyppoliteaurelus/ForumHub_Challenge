@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class UsuarioService {
@@ -31,7 +32,7 @@ public class UsuarioService {
         List<Usuario> usuarios = usuarioRepository.findAll();
         return usuarios.stream()
                 .map(usuario -> new UsuarioDTO(usuario.getId(), usuario.getNome(), usuario.getUsername(), null, usuario.getEstado()))
-                .toList();
+                .collect(Collectors.toList());
     }
 
     public UsuarioDTO atualizarUsuario(Long id, UsuarioDTO usuarioDTO) {

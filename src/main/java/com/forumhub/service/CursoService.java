@@ -49,6 +49,7 @@ public class CursoService {
 
     // Método para deletar um curso
     public void deletarCurso(Long id) {
+
         if (!cursoRepository.existsById(id)) {
             throw new IllegalArgumentException("Curso não encontrado");
         }

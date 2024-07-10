@@ -1,89 +1,102 @@
 package com.forumhub.service;
 
 import com.forumhub.DTO.TopicoDTO;
+import com.forumhub.DTO.UsuarioDTO;
 import com.forumhub.domain.Topico;
-
-import com.forumhub.repository.CursoRepository;
+import com.forumhub.exception.ResourceNotFoundException;
 import com.forumhub.repository.TopicoRepository;
 import com.forumhub.repository.UsuarioRepository;
+import com.forumhub.repository.CursoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class TopicoService {
 
-    @Autowired
-    private TopicoRepository topicoRepository;
+    private final TopicoRepository topicoRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final CursoRepository cursoRepository;
 
     @Autowired
-    private UsuarioRepository usuarioRepository;
+    public TopicoService(TopicoRepository topicoRepository, UsuarioRepository usuarioRepository, CursoRepository cursoRepository) {
+        this.topicoRepository = topicoRepository;
+        this.usuarioRepository = usuarioRepository;
+        this.cursoRepository = cursoRepository;
+    }
 
-    @Autowired
-    private CursoRepository cursoRepository;
-
-    public TopicoDTO criarTopico(TopicoDTO topicoDTO) {
-        validarTopico(topicoDTO);
+    public TopicoDTO cadastrarTopico(TopicoDTO topicoDTO) {
         Topico topico = new Topico();
         topico.setTitulo(topicoDTO.titulo());
         topico.setMensagem(topicoDTO.mensagem());
+        topico.setDataCriacao(LocalDateTime.now()); // Definindo a data de criação como o momento atual
         topico.setEstado(topicoDTO.estado());
+
+        // Busca o autor no banco de dados pelo ID e associa ao tópico
         topico.setAutor(usuarioRepository.findById(topicoDTO.autorId())
-                .orElseThrow(() -> new IllegalArgumentException("Autor não encontrado")));
+                .orElseThrow(() -> new ResourceNotFoundException("Autor não encontrado")));
+
+        // Busca o curso no banco de dados pelo ID e associa ao tópico
         topico.setCurso(cursoRepository.findById(topicoDTO.cursoId())
-                .orElseThrow(() -> new IllegalArgumentException("Curso não encontrado")));
-        topico = topicoRepository.save(topico);
-        return new TopicoDTO(topico.getId(), topico.getTitulo(), topico.getMensagem(), topico.getDataCriacao(), topico.isEstado(), topico.getAutor().getId(), topico.getCurso().getId());
+                .orElseThrow(() -> new  ResourceNotFoundException("Curso não encontrado")));
+
+        Topico savedTopico = topicoRepository.save(topico);
+        return converterParaDTO(savedTopico);
     }
 
-    public List<TopicoDTO> listarTopicos() {
+
+    public List<TopicoDTO> listarTodos() {
         List<Topico> topicos = topicoRepository.findAll();
         return topicos.stream()
-                .map(topico -> new TopicoDTO(topico.getId(), topico.getTitulo(), topico.getMensagem(), topico.getDataCriacao(), topico.isEstado(), topico.getAutor().getId(), topico.getCurso().getId()))
-                .toList();
+                .map(topico -> {
+                    Long autorId = topico.getAutor() != null ? topico.getAutor().getId() : null;
+                    Long cursoId = topico.getCurso() != null ? topico.getCurso().getId() : null;
+                    return new TopicoDTO(topico.getId(), topico.getTitulo(), topico.getMensagem(), topico.getDataCriacao(),topico.isEstado(), autorId, cursoId);
+                })
+                .collect(Collectors.toList());
     }
 
     public TopicoDTO atualizarTopico(Long id, TopicoDTO topicoDTO) {
-        validarTopico(topicoDTO);
-        Optional<Topico> topicoOpt = topicoRepository.findById(id);
-        if (topicoOpt.isPresent()) {
-            Topico topico = topicoOpt.get();
-            topico.setTitulo(topicoDTO.titulo());
-            topico.setMensagem(topicoDTO.mensagem());
-            topico.setEstado(topicoDTO.estado());
-            topico.setAutor(usuarioRepository.findById(topicoDTO.autorId())
-                    .orElseThrow(() -> new IllegalArgumentException("Autor não encontrado")));
-            topico.setCurso(cursoRepository.findById(topicoDTO.cursoId())
-                    .orElseThrow(() -> new IllegalArgumentException("Curso não encontrado")));
-            topico = topicoRepository.save(topico);
-            return new TopicoDTO(topico.getId(), topico.getTitulo(), topico.getMensagem(), topico.getDataCriacao(), topico.isEstado(), topico.getAutor().getId(), topico.getCurso().getId());
-        } else {
-            throw new IllegalArgumentException("Tópico não encontrado");
-        }
+        Topico topico = topicoRepository.findById(id)
+                .orElseThrow(() -> new  ResourceNotFoundException("Tópico não encontrado"));
+
+        topico.setTitulo(topicoDTO.titulo());
+        topico.setMensagem(topicoDTO.mensagem());
+        // A data de criação e o estado geralmente não são atualizados diretamente
+
+        // Atualiza o autor do tópico buscando no banco de dados pelo ID
+        topico.setAutor(usuarioRepository.findById(topicoDTO.autorId())
+                .orElseThrow(() -> new  ResourceNotFoundException("Autor não encontrado")));
+
+        // Atualiza o curso do tópico buscando no banco de dados pelo ID
+        topico.setCurso(cursoRepository.findById(topicoDTO.cursoId())
+                .orElseThrow(() -> new  ResourceNotFoundException("Curso não encontrado")));
+
+        Topico updatedTopico = topicoRepository.save(topico);
+        return converterParaDTO(updatedTopico);
     }
 
     public void deletarTopico(Long id) {
-        if (!topicoRepository.existsById(id)) {
-            throw new IllegalArgumentException("Tópico não encontrado");
-        }
         topicoRepository.deleteById(id);
     }
 
-    private void validarTopico(TopicoDTO topicoDTO) {
-        if (!StringUtils.hasText(topicoDTO.titulo())) {
-            throw new IllegalArgumentException("Título do tópico é obrigatório");
-        }
-        if (!StringUtils.hasText(topicoDTO.mensagem())) {
-            throw new IllegalArgumentException("Mensagem do tópico é obrigatória");
-        }
-        if (topicoDTO.autorId() == null) {
-            throw new IllegalArgumentException("ID do autor é obrigatório");
-        }
-        if (topicoDTO.cursoId() == null) {
-            throw new IllegalArgumentException("ID do curso é obrigatório");
-        }
+    private TopicoDTO converterParaDTO(Topico topico) {
+        return new TopicoDTO(
+                topico.getId(),
+                topico.getTitulo(),
+                topico.getMensagem(),
+                topico.getDataCriacao(),
+                topico.isEstado(),
+                topico.getAutor().getId(),
+                topico.getCurso().getId()
+        );
     }
 }
+
+
+
+
+
